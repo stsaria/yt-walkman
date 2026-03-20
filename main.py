@@ -1,9 +1,6 @@
 import os
-import shutil
 import sys
 import getpass
-from threading import Lock, Thread
-from typing import Generator
 from yt_dlp import YoutubeDL
 import requests
 
