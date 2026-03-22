@@ -1,17 +1,43 @@
+import json
 import os
 import sys
 import getpass
-from yt_dlp import YoutubeDL
 import requests
+from yt_dlp import YoutubeDL
+from mutagen.easyid3 import EasyID3
 
-if not os.path.isfile(".APIKEY"):
-    with open(".APIKEY", mode="w") as f:
-        pass
-    print("you must set api key")
+if not os.path.isfile("settings.json"):
+    with open("settings.json", mode="w") as f:
+        f.write(
+"""
+{
+    "apiKey": "",
+    "playlistIds": [
+        
+    ],
+    "browser": ""
+}
+"""
+        )
+    print("You must configure on settings.json")
     sys.exit()
 
-with open(".APIKEY", mode="r") as f:
-    API_KEY = f.read()
+with open("settings.json", mode="r") as f:
+    d = json.load(f)
+    API_KEY = str(d["apiKey"])
+    PLAYLIST_IDS = [str(pId) for pId in d["playlistIds"]]
+    BROWSER = str(d["browser"])
+
+def getPlaylistTitle(playlistId:str) -> str:
+    r = requests.get(
+        "https://www.googleapis.com/youtube/v3/playlists",
+        params={
+            "part": "snippet",
+            "id": playlistId,
+            "key": API_KEY
+        }
+    )
+    return r.json()["items"][0]["snippet"]["title"]
 
 def getVideoIdsByPlaylist(playlistId:str) -> list[str]:
     first = True
@@ -49,36 +75,44 @@ if not walkmanMusicPath:
     print("You must connect your walkman.")
     sys.exit()
 
-playlistId = input("Playlist Id:")
-browserForCookies = input("Your browser:")
+for playlistId in PLAYLIST_IDS:
+    playlistTitle = getPlaylistTitle(playlistId)
+    print(f"\033cStarting downloading a playlist {playlistTitle}")
+    ids = getVideoIdsByPlaylist(playlistId)
+    oIds = ids.copy()
 
-print("Get video ids")
-ids = getVideoIdsByPlaylist(playlistId)
+    for fN in os.listdir(walkmanMusicPath):
+        s = fN.split(".")
+        if len(s) < 2:
+            continue
+        if s[-2] in ids:
+            ids.remove(s[-2])
 
-for fN in os.listdir(walkmanMusicPath):
-    s = fN.split(".")
-    if len(s) < 2:
-        continue
-    if s[-2] in ids:
-        ids.remove(s[-2])
-
-print("Download videos and send them to walkman")
-with YoutubeDL(params={
-    "ignoreerrors": True,
-    "cookiesfrombrowser": (browserForCookies, None, None, None),
-    "extractaudio": True,
-    "format": "bestaudio/best",
-    "postprocessors": [{
-        "key": "FFmpegExtractAudio",
-        "preferredcodec": "mp3",
-        "preferredquality": "320",
-    }],
-    "remotecomponents": "ejs:github",
-    "outtmpl": f"{walkmanMusicPath}/%(title)s.%(id)s",
-}) as dler:
-    try:
-        dler.download([f"https://www.youtube.com/watch?v={i}" for i in ids])
-    except Exception:
-        pass
-
-print("Complete.")
+    print("Downloading videos and send them to walkman")
+    with YoutubeDL(params={
+        "ignoreerrors": True,
+        "cookiesfrombrowser": (BROWSER, None, None, None),
+        "extractaudio": True,
+        "format": "bestaudio/best",
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "320",
+        }],
+        "remotecomponents": "ejs:github",
+        "outtmpl": f"{walkmanMusicPath}/%(title)s.%(id)s",
+    }) as dler:
+        try:
+            dler.download([f"https://www.youtube.com/watch?v={i}" for i in ids])
+        except Exception:
+            pass
+    print("Setting album")
+    for fN in os.listdir(walkmanMusicPath):
+        s = fN.split(".")
+        if len(s) < 2:
+            continue
+        if s[-2] in oIds:
+            mp3 = EasyID3(f"{walkmanMusicPath}/{fN}")
+            mp3["album"] = playlistTitle
+            mp3.save(v1=0, v2_version=3)
+print("\033cCompleted.")
