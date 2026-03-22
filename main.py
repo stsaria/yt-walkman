@@ -83,10 +83,10 @@ for playlistId in PLAYLIST_IDS:
 
     for fN in os.listdir(walkmanMusicPath):
         s = fN.split(".")
-        if len(s) < 2:
+        if len(s) < 4:
             continue
-        if s[-2] in ids:
-            ids.remove(s[-2])
+        if s[-3] in ids and s[-2] == playlistId:
+            ids.remove(s[-3])
 
     print("Downloading videos and send them to walkman")
     with YoutubeDL(params={
@@ -100,7 +100,7 @@ for playlistId in PLAYLIST_IDS:
             "preferredquality": "320",
         }],
         "remotecomponents": "ejs:github",
-        "outtmpl": f"{walkmanMusicPath}/%(title)s.%(id)s",
+        "outtmpl": f"{walkmanMusicPath}/%(title)s.%(id)s.{playlistId}",
     }) as dler:
         try:
             dler.download([f"https://www.youtube.com/watch?v={i}" for i in ids])
@@ -109,10 +109,11 @@ for playlistId in PLAYLIST_IDS:
     print("Setting album")
     for fN in os.listdir(walkmanMusicPath):
         s = fN.split(".")
-        if len(s) < 2:
+        if len(s) < 4:
             continue
-        if s[-2] in oIds:
+        if s[-2] == playlistId:
             mp3 = EasyID3(f"{walkmanMusicPath}/{fN}")
             mp3["album"] = playlistTitle
+            mp3["title"] = fN.split(".")[:-3]
             mp3.save(v1=0, v2_version=3)
 print("\033cCompleted.")
