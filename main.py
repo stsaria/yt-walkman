@@ -72,7 +72,7 @@ for p in WALKMAN_MUSIC_PATHS:
         walkmanMusicPath = p
 
 if not walkmanMusicPath:
-    print("You must connect your walkman.")
+    print("You must connect to your walkman.")
     sys.exit()
 
 for playlistId in PLAYLIST_IDS:
